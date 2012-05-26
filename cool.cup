@@ -74,10 +74,9 @@ nonterminal Expression expr;
 nonterminal Formals formal_list;
 nonterminal Formal	formal;
 nonterminal Expressions expr_block;
-nonterminal Expressions expr_comma;
 nonterminal Cases case_list;
 nonterminal Case case;
-nonterminal Expression let_trail;
+nonterminal Expression let_tail;
 
 
 /* Precedence declarations go here. */
@@ -94,7 +93,7 @@ precedence left DOT;
 program	
 	::= class_list:cl
 	    {: RESULT = new programc(curr_lineno(), cl); :}
-        ;
+	;
 
 class_list
 	/* single class */
@@ -104,8 +103,6 @@ class_list
 	| class_list:cl class:c
 	    {: RESULT = cl.appendElement(c); :}
 	| error
-		{: RESULT = new Classes(curr_lineno()); :}
-	| class_list error
 		{: RESULT = new Classes(curr_lineno()); :}
 	;
 
@@ -126,11 +123,9 @@ feature_list
 		{: RESULT = new Features(curr_lineno()); :}
 	| feature:f SEMI
 		{: RESULT = (new Features(curr_lineno())).appendElement(f); :}
-	| error SEMI
-		{: RESULT = new Features(curr_lineno()); :}
 	| feature_list:fl feature:f SEMI
 		{: RESULT = fl.appendElement(f); :}
-	| feature_list error SEMI
+	| error SEMI
 		{: RESULT = new Features(curr_lineno()); :}
 	;
 	
@@ -148,11 +143,9 @@ formal_list
 		{: RESULT = new Formals(curr_lineno()); :}
 	| formal:fo
 		{: RESULT = (new Formals(curr_lineno())).appendElement(fo); :}
-	| error
-		{: RESULT = new Formals(curr_lineno()); :}
 	| formal_list:fol COMMA formal:fo
 		{: RESULT = fol.appendElement(fo); :}
-	| formal_list:fol COMMA error
+	| error
 		{: RESULT = new Formals(curr_lineno()); :}
 	;
 	
@@ -168,6 +161,8 @@ expr_list
 		{: RESULT = (new Expressions(curr_lineno())).appendElement(e); :}
 	| expr_list:el COMMA expr:e
 		{: RESULT = el.appendElement(e); :}
+	| error
+		{: RESULT = new Expressions(curr_lineno()); :}
 	;
 
 expr
@@ -187,12 +182,20 @@ expr
 		{: RESULT = new cond(curr_lineno(), e1, e2, e3); :}
 	| WHILE expr:e1 LOOP expr:e2 POOL
 		{: RESULT = new loop(curr_lineno(), e1, e2); :}
+	| WHILE expr LOOP expr LOOP error
+		{: RESULT = new no_expr(curr_lineno()); :}
 	| LBRACE expr_block:eb RBRACE
 		{: RESULT = new block(curr_lineno(), eb); :}
 	| LET OBJECTID:o COLON TYPEID:t IN expr:e
 		{: RESULT = new let(curr_lineno(), o, t, (new no_expr(curr_lineno())), e); :}
 	| LET OBJECTID:o COLON TYPEID:t ASSIGN expr:e1 IN expr:e2
 		{: RESULT = new let(curr_lineno(), o, t, e1, e2); :}
+	| LET OBJECTID:o COLON TYPEID:t let_tail:lt
+		{: RESULT = new let(curr_lineno(), o, t, 
+							(new no_expr(curr_lineno())),
+							lt); :}
+	| LET OBJECTID:o COLON TYPEID:t ASSIGN expr:e let_tail:lt
+		{: RESULT = new let(curr_lineno(), o, t, e, lt); :}
 	| CASE expr:e OF case_list:cl ESAC
 		{: RESULT = new typcase(curr_lineno(), e, cl); :}
 	| NEW TYPEID:t
@@ -227,16 +230,16 @@ expr
 		{: RESULT = new string_const(curr_lineno(), s); :}
 	| BOOL_CONST:b
 		{: RESULT = new bool_const(curr_lineno(), b); :}
+	| error
+		{: RESULT = new no_expr(curr_lineno()); :}
 	;
 	
 expr_block
 	::= expr:e SEMI
 		{: RESULT = (new Expressions(curr_lineno())).appendElement(e); :}
-	| error SEMI
-		{: RESULT = new Expressions(curr_lineno()); :}
 	| expr_block:eb expr:e SEMI
 		{: RESULT = eb.appendElement(e); :}
-	| expr_block error SEMI
+	| error SEMI
 		{: RESULT = new Expressions(curr_lineno()); :}
 	;
 	
@@ -251,4 +254,16 @@ case
 	::= OBJECTID:o COLON TYPEID:t DARROW expr:e
 		{: RESULT = new branch(curr_lineno(), o, t, e); :}
 	;
-	
+
+let_tail
+	::= COMMA OBJECTID:o COLON TYPEID:t let_tail:tl
+		{: RESULT = new let(curr_lineno(), o, t,
+							(new no_expr(curr_lineno())), tl); :}
+	| COMMA OBJECTID:o COLON TYPEID:t IN expr:e
+		{: RESULT = new let(curr_lineno(), o, t,
+							(new no_expr(curr_lineno())), e); :}
+	| COMMA OBJECTID:o COLON TYPEID:t ASSIGN expr:e let_tail:tl
+		{: RESULT = new let(curr_lineno(), o, t, e, tl); :}
+	| COMMA OBJECTID:o COLON TYPEID:t ASSIGN expr:e1 IN expr:e2
+		{: RESULT = new let(curr_lineno(), o, t, e1, e2); :}
+	;
